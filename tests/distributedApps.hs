@@ -1,6 +1,8 @@
 #!/usr/bin/env ./execthirdline.sh
---
--- set -e &&  port=`echo ${3} | awk -F/ '{print $(3)}'` && docker run -it -p ${port}:${port} -v /c/Users/magocoal/OneDrive/Haskell/devel:/devel testtls  bash -c "cd /devel/transient-universe-tls/tests && mkdir -p static && ghcjs  -j2 -isrc -i/devel/transient/src -i/devel/transient-universe/src -i/devel/transient-universe-tls/src -i/devel/ghcjs-hplay/src -i/devel/ghcjs-perch/src /devel/transient-universe-tls/tests/$1 -o static/out && ghc  -j2 -isrc -i/devel/transient/src -i/devel/transient-universe/src -i/devel/transient-universe-tls/src -i/devel/ghcjs-hplay/src -i/devel/ghcjs-perch/src $1 && ./$(basename $1 .hs) $2 $3 $4"
+-- only GHC, link with devel libraries
+-- set -e &&  port=`echo ${3} | awk -F/ '{print $(3)}'` && docker run -it -p ${port}:${port} -v /c/Users/magocoal/OneDrive/Haskell/devel:/devel testtls  bash -c "cd /devel/transient-universe-tls/tests && ghc  --make -j2 -isrc -i/devel/transient/src -i/devel/transient-universe/src -i/devel/transient-universe-tls/src -i/devel/ghcjs-hplay/src -i/devel/ghcjs-perch/src $1 && ./$(basename $1 .hs) $2 $3 $4"
+
+-- set -e &&  port=`echo ${3} | awk -F/ '{print $(3)}'` && docker run -it -p ${port}:${port} -v /c/Users/magocoal/OneDrive/Haskell/devel:/devel testtls  bash -c "cd /devel/transient-universe-tls/tests && mkdir -p static && ghcjs --make  -j2 -isrc -i/devel/transient/src -i/devel/transient-universe/src -i/devel/transient-universe-tls/src -i/devel/ghcjs-hplay/src -i/devel/ghcjs-perch/src /devel/transient-universe-tls/tests/$1 -o static/out && ghc  --make -j2 -isrc -i/devel/transient/src -i/devel/transient-universe/src -i/devel/transient-universe-tls/src -i/devel/ghcjs-hplay/src -i/devel/ghcjs-perch/src $1 && ./$(basename $1 .hs) $2 $3 $4"
 
 
 -- compile it with ghcjs and ghc, and  execute it

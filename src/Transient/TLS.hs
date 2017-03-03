@@ -59,16 +59,22 @@ initTLS= liftIO $
 maybeTLSServerHandshake sock input= do
  if ((not $ BL.null input) && BL.head input  == 0x16)
    then  do
-        ctx <- liftIO $ do
+        mctx <- liftIO $( do
               ctx <- makeServerContext ssettings sock  input
               TLS.handshake ctx
-              return ctx                                               -- !> "after handshake"
-        modifyState $ \(Just c) -> Just  c{connData= Just $ TLSNode2Node $ unsafeCoerce ctx}
+              return $Just ctx )
+               `catch` \(e:: SomeException) -> do
+                     print e
+                     return Nothing               -- !> "after handshake"
 
-        setData $ ParseContext (TLS.recvData ctx >>= return . BL8.fromStrict)
+        case mctx of
+          Nothing -> return ()
+          Just ctx -> do
+             modifyState $ \(Just c) -> Just  c{connData= Just $ TLSNode2Node $ unsafeCoerce ctx}
+             setData $ ParseContext (TLS.recvData ctx >>= return . BL8.fromStrict)
                                ("" ::   BL8.ByteString)
 
-        onException $ \(e:: SomeException) -> liftIO $ TLS.contextClose ctx
+             onException $ \(e:: SomeException) -> liftIO $ TLS.contextClose ctx
    else return ()
 
 ssettings = unsafePerformIO $ do
@@ -88,8 +94,9 @@ maybeClientTLSHandshake hostname sock input = do
            return $ Just ctx)
               `catch` \(e :: SomeException) -> return Nothing
    case mctx of
-     Nothing -> return ()
+     Nothing -> print "No TLS connection" >> return ()                   --  !> "NO TLS"
      Just ctx -> do
+        print "TLS connetion" >> return ()                           --  !> "TLS"
         modifyState $ \(Just c) -> Just  c{connData= Just $ TLSNode2Node $ unsafeCoerce ctx}
 
         setData $ ParseContext (TLS.recvData ctx >>= return . BL.fromChunks . (:[]))
