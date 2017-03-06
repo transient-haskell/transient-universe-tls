@@ -94,9 +94,9 @@ maybeClientTLSHandshake hostname sock input = do
            return $ Just ctx)
               `catch` \(e :: SomeException) -> return Nothing
    case mctx of
-     Nothing -> print "No TLS connection" >> return ()                   --  !> "NO TLS"
+     Nothing -> liftIO $ print "No TLS connection" >> return ()                   --  !> "NO TLS"
      Just ctx -> do
-        print "TLS connetion" >> return ()                           --  !> "TLS"
+        liftIO $ print "TLS connetion" >> return ()                           --  !> "TLS"
         modifyState $ \(Just c) -> Just  c{connData= Just $ TLSNode2Node $ unsafeCoerce ctx}
 
         setData $ ParseContext (TLS.recvData ctx >>= return . BL.fromChunks . (:[]))
