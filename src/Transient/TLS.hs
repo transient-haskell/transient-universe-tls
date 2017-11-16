@@ -32,7 +32,6 @@ import qualified Data.ByteString.Lazy               as BL
 import qualified Data.ByteString.Lazy.Char8         as BL8
 import qualified Data.ByteString.Char8              as B
 import qualified Data.ByteString                    as BE
-import qualified Data.Certificate.X509              as X
 
 import qualified Data.X509.CertificateStore         as C
 import           Data.Default
