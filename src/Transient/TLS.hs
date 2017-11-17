@@ -13,7 +13,7 @@
 
 {-# LANGUAGE   CPP, OverloadedStrings, BangPatterns, ScopedTypeVariables #-}
 
-module Transient.TLS(initTLS) where
+module Transient.TLS(initTLS, initTLS') where
 #ifndef ghcjs_HOST_OS
 import           Transient.Internals
 import           Transient.Move.Internals
@@ -32,7 +32,6 @@ import qualified Data.ByteString.Lazy               as BL
 import qualified Data.ByteString.Lazy.Char8         as BL8
 import qualified Data.ByteString.Char8              as B
 import qualified Data.ByteString                    as BE
-import qualified Data.Certificate.X509              as X
 
 import qualified Data.X509.CertificateStore         as C
 import           Data.Default
@@ -49,18 +48,25 @@ import Debug.Trace
 
 
 initTLS :: MonadIO m => m ()
-initTLS= liftIO $
-      writeIORef tlsHooks (unsafeCoerce $ (TLS.sendData :: TLS.Context -> BL8.ByteString -> IO ())
-                          ,unsafeCoerce $ (TLS.recvData :: TLS.Context -> IO BE.ByteString)
-                          ,unsafeCoerce $ Transient.TLS.maybeTLSServerHandshake
-                          ,unsafeCoerce $ Transient.TLS.maybeClientTLSHandshake )
+initTLS = initTLS' "certificate.pem" "key.pem"
+
+initTLS' :: MonadIO m => FilePath -> FilePath -> m ()
+initTLS' certpath keypath = liftIO $ writeIORef
+  tlsHooks
+  ( unsafeCoerce $ (TLS.sendData :: TLS.Context -> BL8.ByteString -> IO ())
+  , unsafeCoerce $ (TLS.recvData :: TLS.Context -> IO BE.ByteString)
+  , unsafeCoerce $ Transient.TLS.maybeTLSServerHandshake certpath keypath
+  , unsafeCoerce $ Transient.TLS.maybeClientTLSHandshake
+  )
 
 
-maybeTLSServerHandshake sock input= do
+maybeTLSServerHandshake
+  :: FilePath -> FilePath -> Socket -> BL8.ByteString -> TransIO ()
+maybeTLSServerHandshake certpath keypath sock input= do
  if ((not $ BL.null input) && BL.head input  == 0x16)
    then  do
         mctx <- liftIO $( do
-              ctx <- makeServerContext ssettings sock  input
+              ctx <- makeServerContext (ssettings certpath keypath) sock  input
               TLS.handshake ctx
               return $Just ctx )
                `catch` \(e:: SomeException) -> do
@@ -77,13 +83,13 @@ maybeTLSServerHandshake sock input= do
              onException $ \(e:: SomeException) -> liftIO $ TLS.contextClose ctx
    else return ()
 
-ssettings = unsafePerformIO $ do
-      cred <- either error id <$> TLS.credentialLoadX509
-             "certificate.pem"
-             "key.pem"
+ssettings :: FilePath -> FilePath -> ServerParams
+ssettings certpath keypath = unsafePerformIO $ do
+      cred <- either error id <$> TLS.credentialLoadX509 certpath keypath
       return $ makeServerSettings    cred
 
 
+maybeClientTLSHandshake :: String -> Socket -> BL8.ByteString -> TransIO ()
 maybeClientTLSHandshake hostname sock input = do
    mctx <- liftIO $ (do
            global <- getSystemCertificateStore
