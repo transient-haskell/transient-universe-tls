@@ -234,4 +234,7 @@ import Control.Monad.IO.Class
 
 initTLS :: MonadIO m => m ()
 initTLS= return ()
+
+initTLS' :: MonadIO m => FilePath -> FilePath -> m ()
+initTLS' _ _ = return ()
 #endif
