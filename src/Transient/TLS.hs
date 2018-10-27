@@ -18,6 +18,7 @@ module Transient.TLS(initTLS, initTLS') where
 import           Transient.Internals
 import           Transient.Move.Internals
 import           Transient.Backtrack
+import           Transient.Parse
 
 import           Network.Socket                     as NSS
 import           Network.Socket.ByteString          as NS
@@ -36,7 +37,7 @@ import qualified Data.ByteString                    as BE
 import qualified Data.X509.CertificateStore         as C
 import           Data.Default
 import           Control.Exception                  as E hiding (onException)
-import           Control.Monad.IO.Class
+import           Control.Monad.State
 import           Data.IORef
 import           Unsafe.Coerce
 import           System.IO.Unsafe
@@ -77,7 +78,7 @@ maybeTLSServerHandshake certpath keypath sock input= do
           Nothing -> return ()
           Just ctx -> do
              modifyState $ \(Just c) -> Just  c{connData= Just $ TLSNode2Node $ unsafeCoerce ctx}
-             setData $ ParseContext (TLS.recvData ctx >>= return . BL8.fromStrict)
+             setData $ ParseContext (TLS.recvData ctx >>= return . SMore . BL8.fromStrict)
                                ("" ::   BL8.ByteString)
 
              onException $ \(e:: SomeException) -> liftIO $ TLS.contextClose ctx
@@ -105,7 +106,7 @@ maybeClientTLSHandshake hostname sock input = do
         liftIO $ print "TLS connetion" >> return ()                           --  !> "TLS"
         modifyState $ \(Just c) -> Just  c{connData= Just $ TLSNode2Node $ unsafeCoerce ctx}
 
-        setData $ ParseContext (TLS.recvData ctx >>= return . BL.fromChunks . (:[]))
+        setData $ ParseContext (TLS.recvData ctx >>= return . SMore . BL.fromChunks . (:[]))
                                ("" ::   BL8.ByteString)
         onException $ \(e:: SomeException) ->  liftIO $ TLS.contextClose ctx
 
