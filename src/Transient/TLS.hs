@@ -36,6 +36,7 @@ import qualified Data.ByteString                    as BE
 
 import qualified Data.X509.CertificateStore         as C
 import           Data.Default
+import           Control.Applicative
 import           Control.Exception                  as E hiding (onException)
 import           Control.Monad.State
 import           Data.IORef
@@ -58,8 +59,10 @@ initTLS' certpath keypath = liftIO $ writeIORef
   , unsafeCoerce $ (TLS.recvData :: TLS.Context -> IO BE.ByteString)
   , unsafeCoerce $ Transient.TLS.maybeTLSServerHandshake certpath keypath
   , unsafeCoerce $ Transient.TLS.maybeClientTLSHandshake
+  , unsafeCoerce $ (Transient.TLS.tlsClose :: TLS.Context -> IO ())
   )
 
+tlsClose ctx= bye ctx >> contextClose ctx
 
 maybeTLSServerHandshake
   :: FilePath -> FilePath -> Socket -> BL8.ByteString -> TransIO ()
@@ -77,7 +80,10 @@ maybeTLSServerHandshake certpath keypath sock input= do
         case mctx of
           Nothing -> return ()
           Just ctx -> do
-             modifyState $ \(Just c) -> Just  c{connData= Just $ TLSNode2Node $ unsafeCoerce ctx}
+             -- modifyState $ \(Just c) -> Just  c{connData= Just $ TLSNode2Node $ unsafeCoerce ctx}
+             conn <- getSData <|> error "TLS: no socket connection"
+             liftIO $ writeIORef (connData conn) $  Just $ TLSNode2Node $ unsafeCoerce ctx 
+                   
              setData $ ParseContext (TLS.recvData ctx >>= return . SMore . BL8.fromStrict)
                                ("" ::   BL8.ByteString)
 
@@ -103,9 +109,10 @@ maybeClientTLSHandshake hostname sock input = do
    case mctx of
      Nothing -> liftIO $ print "No TLS connection" >> return ()                   --  !> "NO TLS"
      Just ctx -> do
-        liftIO $ print "TLS connetion" >> return ()                           --  !> "TLS"
-        modifyState $ \(Just c) -> Just  c{connData= Just $ TLSNode2Node $ unsafeCoerce ctx}
-
+        liftIO $ print "TLS connection" >> return ()                           --  !> "TLS"
+        --modifyState $ \(Just c) -> Just  c{connData= Just $ TLSNode2Node $ unsafeCoerce ctx}
+        conn <- getSData <|> error "TLS: no socket connection"
+        liftIO $ writeIORef (connData conn) $  Just $ TLSNode2Node $ unsafeCoerce ctx 
         setData $ ParseContext (TLS.recvData ctx >>= return . SMore . BL.fromChunks . (:[]))
                                ("" ::   BL8.ByteString)
         onException $ \(e:: SomeException) ->  liftIO $ TLS.contextClose ctx
@@ -197,7 +204,7 @@ makeClientContext params sock input= do
           let (res,input')= BL.splitAt (fromIntegral n) input
 
           writeIORef inputBuffer input'
-          return $ toStrict res
+          return $ BL8.toStrict res
       }
 --    step !acc 0 = return acc
 --    step !acc n = do
