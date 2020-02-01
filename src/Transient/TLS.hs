@@ -42,16 +42,24 @@ import           Control.Monad.State
 import           Data.IORef
 import           Unsafe.Coerce
 import           System.IO.Unsafe
-
+import           System.Directory
 import           System.X509 (getSystemCertificateStore)  --to avoid checking certificate. delete
 import Debug.Trace
 
 
 
 
+-- | init TLS with the files "cert.pem" and "key.pem"
 initTLS :: MonadIO m => m ()
-initTLS = initTLS' "certificate.pem" "key.pem"
+initTLS =  do
+  c <- liftIO $ doesFileExist "cert.pem"
+  k <- liftIO $ doesFileExist "key.pem"
+  if not c || not k 
+     then error "cert.pem and key.pem must exist withing the current directory"
+     else initTLS' "cert.pem" "key.pem"
 
+
+-- | init TLS using  certificate.pem and a key.pem files
 initTLS' :: MonadIO m => FilePath -> FilePath -> m ()
 initTLS' certpath keypath = liftIO $ writeIORef
   tlsHooks
@@ -84,8 +92,8 @@ maybeTLSServerHandshake certpath keypath sock input= do
              conn <- getSData <|> error "TLS: no socket connection"
              liftIO $ writeIORef (connData conn) $  Just $ TLSNode2Node $ unsafeCoerce ctx 
                    
-             setData $ ParseContext (TLS.recvData ctx >>= return . SMore . BL8.fromStrict)
-                               ("" ::   BL8.ByteString)
+             modify $ \s -> s{ parseContext=ParseContext (TLS.recvData ctx >>= return . SMore . BL8.fromStrict)
+                               ("" ::   BL8.ByteString)}
 
              onException $ \(e:: SomeException) -> liftIO $ TLS.contextClose ctx
    else return ()
@@ -113,8 +121,8 @@ maybeClientTLSHandshake hostname sock input = do
         --modifyState $ \(Just c) -> Just  c{connData= Just $ TLSNode2Node $ unsafeCoerce ctx}
         conn <- getSData <|> error "TLS: no socket connection"
         liftIO $ writeIORef (connData conn) $  Just $ TLSNode2Node $ unsafeCoerce ctx 
-        setData $ ParseContext (TLS.recvData ctx >>= return . SMore . BL.fromChunks . (:[]))
-                               ("" ::   BL8.ByteString)
+        modify $ \st -> st{parseContext= ParseContext (TLS.recvData ctx >>= return . SMore . BL.fromChunks . (:[]))
+                               ("" ::   BL8.ByteString)}
         onException $ \(e:: SomeException) ->  liftIO $ TLS.contextClose ctx
 
 makeClientSettings global hostname= ClientParams{
